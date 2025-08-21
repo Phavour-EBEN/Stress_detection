@@ -3,7 +3,12 @@ import pandas as pd
 import numpy as np
 import joblib
 import os
+import requests
 from flask_cors import CORS
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
@@ -12,6 +17,51 @@ CORS(app)
 # rf_model = None
 label_encoder = None
 scaler = None
+
+# Firebase configuration from environment variables
+FIREBASE_API_KEY = os.getenv('FIREBASE_API_KEY')
+FIREBASE_PROJECT_ID = os.getenv('FIREBASE_PROJECT_ID')
+FIREBASE_BASE_URL = f"https://{FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com" if FIREBASE_PROJECT_ID else None
+
+def setup_firebase():
+    """Setup Firebase configuration"""
+    if not FIREBASE_API_KEY or not FIREBASE_PROJECT_ID:
+        print("❌ Firebase configuration not found in environment variables")
+        return False
+    
+    print(f"✅ Firebase configured for project: {FIREBASE_PROJECT_ID}")
+    return True
+
+def fetch_all_data(api_key: str, project_id: str) -> dict:
+    """Fetch all data from Firebase Realtime Database"""
+    base_url = f"https://{project_id}-default-rtdb.firebaseio.com"
+    try:
+        # Add .json to the end of the URL to get JSON response
+        url = f"{base_url}/.json"
+        params = {
+            'auth': api_key
+        }
+        response = requests.get(url, params=params)
+        response.raise_for_status()  # Raise an error for bad status codes
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching data: {str(e)}")
+        raise
+
+def fetch_latest_data():
+    """Fetch latest data from Firebase 'latest' table"""
+    try:
+        all_data = fetch_all_data(FIREBASE_API_KEY, FIREBASE_PROJECT_ID)
+        if all_data and 'latest' in all_data:
+            latest_data = all_data['latest']
+            print(f"✅ Fetched latest data from Firebase: {latest_data}")
+            return latest_data
+        else:
+            print("⚠️  Latest table not found or empty")
+            return None
+    except Exception as e:
+        print(f"❌ Error fetching latest data: {str(e)}")
+        return None
 
 def load_models():
     """Load the trained models and preprocessing objects"""
@@ -30,19 +80,49 @@ def load_models():
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    return jsonify({'status': 'healthy', 'message': 'Stress Detection API is running'})
+    return jsonify({
+        'status': 'healthy', 
+        'message': 'Stress Detection API is running',
+        'models_loaded': all([label_encoder, scaler]),
+        'firebase_configured': bool(FIREBASE_API_KEY and FIREBASE_PROJECT_ID)
+    })
 
-@app.route('/predict', methods=['POST'])
+
+@app.route('/fetch_latest', methods=['GET'])
+def get_latest_data():
+    """Fetch latest data from Firebase"""
+    data = fetch_latest_data()
+    if data is None:
+        return jsonify({'error': 'Failed to fetch latest data from Firebase'}), 500
+    
+    return jsonify({
+        'data': data,
+        'source': 'firebase_latest'
+    })
+
+@app.route('/predict', methods=['POST', 'GET'])
 def predict():
+    """Make stress prediction from Firebase data or request body"""
     try:
         if scaler is None:
             success, message = load_models()
             if not success:
                 return jsonify({'error': message}), 500
         
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
+        # Determine data source
+        if request.method == 'GET' or not request.is_json:
+            # Fetch data from Firebase
+            firebase_data = fetch_latest_data()
+            if not firebase_data:
+                return jsonify({'error': 'Failed to fetch data from Firebase'}), 500
+            data = firebase_data
+            data_source = 'firebase'
+        else:
+            # Get data from request body
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            data_source = 'request_body'
         
         required_features = ['psd_theta', 'psd_beta', 'hrv']
         missing_features = [feature for feature in required_features if feature not in data]
@@ -121,54 +201,30 @@ def predict():
         return jsonify({
             'prediction': predicted_status,
             'confidence_scores': confidence_scores,
-            'input_features': data,
+            'input_features': {
+                'psd_theta': data['psd_theta'],
+                'psd_beta': data['psd_beta'],
+                'hrv': data['hrv']
+            },
             'scaled_features': scaled_values.tolist(),
-            'method': 'scaler_based_classification'
+            'method': 'scaler_based_classification',
+            'data_source': data_source
         })
         
     except Exception as e:
         return jsonify({'error': f'Prediction error: {str(e)}'}), 500
 
-@app.route('/model_info', methods=['GET'])
-def model_info():
-    try:
-        if scaler is None:
-            return jsonify({'error': 'Model not loaded'}), 400
-        
-        feature_names = ['psd_theta', 'psd_beta', 'hrv']
-        status_mapping = ['anxious', 'normal', 'ptsd', 'stressed']
-        
-        return jsonify({
-            'model_type': 'Scaler-based Classification',
-            'features': feature_names,
-            'classes': status_mapping,
-            'model_loaded': True,
-            'method': 'Rule-based classification using scaled features',
-            'thresholds': {
-                'psd_beta_stressed': 1.5,
-                'hrv_ptsd': -1.0,
-                'psd_theta_anxious': 1.0
-            }
-        })
-        
-    except Exception as e:
-        return jsonify({'error': f'Error: {str(e)}'}), 500
 
-@app.route('/example', methods=['GET'])
-def get_example():
-    return jsonify({
-        'single_prediction': {
-            'url': '/predict',
-            'method': 'POST',
-            'body': {
-                'psd_theta': 8.5,
-                'psd_beta': 0.08897,
-                'hrv': 0.03
-            }
-        }
-    })
+
 
 if __name__ == '__main__':
+    # Setup Firebase
+    if setup_firebase():
+        print("🚀 Starting Flask app with Firebase integration...")
+    else:
+        print("⚠️  Starting Flask app without Firebase integration...")
+    
+    # Load models
     success, message = load_models()
     if success:
         print(f"✅ {message}")
@@ -176,4 +232,9 @@ if __name__ == '__main__':
     else:
         print(f"⚠️  {message}")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Get Flask configuration from environment variables
+    flask_host = os.getenv('FLASK_HOST', '0.0.0.0')
+    flask_port = int(os.getenv('FLASK_PORT', 5000))
+    flask_debug = os.getenv('FLASK_DEBUG', 'True').lower() == 'true'
+    
+    app.run(debug=flask_debug, host=flask_host, port=flask_port)
