@@ -44,7 +44,7 @@ def predict():
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
-        required_features = ['psd_theta', 'psd_beta', 'hrv']
+        required_features = ['theta', 'beta', 'hrv']
         missing_features = [feature for feature in required_features if feature not in data]
         if missing_features:
             return jsonify({'error': f'Missing features: {missing_features}'}), 400
