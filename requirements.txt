@@ -1,12 +1,7 @@
-# setuptools>=65
-# wheel
 Flask==2.3.3
 Flask-CORS
 pandas
-# numpy==1.24.3
 scikit-learn
 joblib
-# Werkzeug==2.3.7
 gunicorn==21.2.0
-# firebase-admin
-# setuptools>=65
+firebase-admin
