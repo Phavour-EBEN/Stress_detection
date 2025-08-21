@@ -44,7 +44,7 @@ def predict():
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
-        required_features = ['theta', 'beta', 'hrv']
+        required_features = ['psd_theta', 'psd_beta', 'hrv']
         missing_features = [feature for feature in required_features if feature not in data]
         if missing_features:
             return jsonify({'error': f'Missing features: {missing_features}'}), 400
@@ -52,8 +52,8 @@ def predict():
         # Create input data with only the required features
         # Fill the removed features with default values for the scaler
         input_data = pd.DataFrame([[
-            data[' theta'], 0.0, data[' beta'], 0.0, data['hrv']
-        ]], columns=['0. theta', '0.psd_alpha', '0. beta', 'EDA', 'HRV'])
+            data['psd_theta'], 0.0, data['psd_beta'], 0.0, data['hrv']
+        ]], columns=['0.psd_theta', '0.psd_alpha', '0.psd_beta', 'EDA', 'HRV'])
         
         # Use scaler to transform the input data
         scaled_input = scaler.transform(input_data)
@@ -67,7 +67,7 @@ def predict():
         print(f"Debug - Available classes: {class_names}")
         
         # Simple classification based on scaled values (updated for 3 features)
-        # Using:  theta (index 0),  beta (index 2), hrv (index 4)
+        # Using: psd_theta (index 0), psd_beta (index 2), hrv (index 4)
         if scaled_values[4] < -1.0:  # HRV threshold - very low HRV indicates PTSD
             prediction = 2  # ptsd
         elif scaled_values[2] > 1.5:  # PSD beta threshold - high beta indicates stress
@@ -135,7 +135,7 @@ def model_info():
         if scaler is None:
             return jsonify({'error': 'Model not loaded'}), 400
         
-        feature_names = [' theta', ' beta', 'hrv']
+        feature_names = ['psd_theta', 'psd_beta', 'hrv']
         status_mapping = ['anxious', 'normal', 'ptsd', 'stressed']
         
         return jsonify({
@@ -145,9 +145,9 @@ def model_info():
             'model_loaded': True,
             'method': 'Rule-based classification using scaled features',
             'thresholds': {
-                ' beta_stressed': 1.5,
+                'psd_beta_stressed': 1.5,
                 'hrv_ptsd': -1.0,
-                ' theta_anxious': 1.0
+                'psd_theta_anxious': 1.0
             }
         })
         
@@ -161,8 +161,8 @@ def get_example():
             'url': '/predict',
             'method': 'POST',
             'body': {
-                ' theta': 8.5,
-                ' beta': 0.08897,
+                'psd_theta': 8.5,
+                'psd_beta': 0.08897,
                 'hrv': 0.03
             }
         }
