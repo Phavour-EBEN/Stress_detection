@@ -32,7 +32,7 @@ def load_models():
 def health_check():
     return jsonify({'status': 'healthy', 'message': 'Stress Detection API is running'})
 
-@app.route('/predict', methods=['POST'])
+@app.route('/predict', methods=['GET'])
 def predict():
     try:
         if scaler is None:
