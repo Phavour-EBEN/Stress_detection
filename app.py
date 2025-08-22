@@ -153,9 +153,9 @@ def predict():
         elif scaled_values[2] > 1.5:  # PSD beta threshold - high beta indicates stress
             prediction = 3  # stressed
         elif scaled_values[0] > 1.0:  # PSD theta threshold - high theta indicates anxiety
-            prediction = 1  # anxious
+            prediction = 2  # anxious
         else:
-            prediction = 2  # normal
+            prediction = 1  # normal
         
         # Get the predicted status text from the label encoder
         try:
