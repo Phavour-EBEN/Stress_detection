@@ -188,7 +188,7 @@ def predict():
         confidence_scores = {}
         for i, status_name in status_mapping.items():
             if i == prediction:
-                confidence_scores[status_name] = 0.8  # High confidence for predicted class
+                confidence_scores[status_name] = 0.4  # High confidence for predicted class
             else:
                 confidence_scores[status_name] = 0.2 / (len(status_mapping) - 1)  # Distribute remaining confidence
         
