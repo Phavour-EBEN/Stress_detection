@@ -149,13 +149,13 @@ def predict():
         # Simple classification based on scaled values (updated for 3 features)
         # Using: psd_theta (index 0), psd_beta (index 2), hrv (index 4)
         if scaled_values[4] < -1.0:  # HRV threshold - very low HRV indicates PTSD
-            prediction = 2  # ptsd
+            prediction = 0  # ptsd
         elif scaled_values[2] > 1.5:  # PSD beta threshold - high beta indicates stress
             prediction = 3  # stressed
         elif scaled_values[0] > 1.0:  # PSD theta threshold - high theta indicates anxiety
             prediction = 1  # anxious
         else:
-            prediction = 0  # normal
+            prediction = 2  # normal
         
         # Get the predicted status text from the label encoder
         try:
